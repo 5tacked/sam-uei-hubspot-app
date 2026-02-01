@@ -1,0 +1,29 @@
+{
+  "uid": "company-creation-webhook",
+  "type": "webhooks",
+  "settings": {
+    "targetUrl": "https://sam-uei-hubspot-app.vercel.app/api/webhooks/company",
+    "maxConcurrentRequests": 10
+  },
+  "subscriptions": {
+    "crmObjects": [
+      {
+        "subscriptionType": "object.creation",
+        "objectType": "company",
+        "active": true
+      },
+      {
+        "subscriptionType": "object.propertyChange",
+        "objectType": "company",
+        "propertyName": "name",
+        "active": true
+      },
+      {
+        "subscriptionType": "object.propertyChange",
+        "objectType": "company",
+        "propertyName": "domain",
+        "active": true
+      }
+    ]
+  }
+}

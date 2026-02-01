@@ -1,0 +1,42 @@
+{
+  "uid": "sam-uei-matcher",
+  "name": "SAM.gov UEI Matcher",
+  "type": "app",
+  "description": "Match HubSpot companies with SAM.gov entities using UEI (Unique Entity Identifier) for government contracting data enrichment",
+  "config": {
+    "distribution": "marketplace",
+    "auth": {
+      "type": "oauth",
+      "redirectUrls": [
+        "https://sam-uei-hubspot-app.vercel.app/api/oauth/callback",
+        "http://localhost:3000/api/oauth/callback"
+      ],
+      "requiredScopes": [
+        "crm.objects.companies.read",
+        "crm.objects.companies.write",
+        "crm.schemas.companies.read",
+        "crm.schemas.companies.write"
+      ],
+      "optionalScopes": [
+        "crm.objects.contacts.read",
+        "crm.objects.deals.read"
+      ],
+      "conditionallyRequiredScopes": []
+    },
+    "support": {
+      "supportEmail": "support@example.com",
+      "documentationUrl": "https://github.com/your-repo/sam-uei-hubspot-app",
+      "supportUrl": "https://github.com/your-repo/sam-uei-hubspot-app/issues"
+    }
+  },
+  "permittedUrls": {
+    "fetch": [
+      "https://api.hubapi.com",
+      "https://api.sam.gov",
+      "https://sam-uei-hubspot-app.vercel.app",
+      "https://qwmmcwolkcgwuofqwgys.supabase.co"
+    ],
+    "iframe": [],
+    "image": []
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "sam-uei-hubspot-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HubSpot app for matching companies with SAM.gov entities using UEI",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "tsc",
+    "deploy": "vercel --prod",
+    "hs:upload": "hs project upload",
+    "hs:dev": "hs project dev"
+  },
+  "dependencies": {
+    "@hubspot/ui-extensions": "^0.12.1",
+    "@supabase/supabase-js": "^2.39.0",
+    "@vercel/node": "^3.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@hubspot/cli": "^7.11.0",
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.0",
+    "typescript": "^5.3.0",
+    "vercel": "^32.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

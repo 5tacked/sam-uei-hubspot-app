@@ -1,0 +1,14 @@
+{
+  "uid": "sam-entity-card",
+  "type": "crm-card",
+  "name": "SAM.gov Entity",
+  "description": "Display SAM.gov entity information for matched companies",
+  "config": {
+    "location": "crm.record.tab",
+    "objectTypes": [
+      {
+        "name": "company"
+      }
+    ]
+  }
+}

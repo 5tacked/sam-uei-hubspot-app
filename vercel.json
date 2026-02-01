@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": ".",
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "@vercel/node@3.0.0"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/oauth/authorize",
+      "dest": "/api/oauth/authorize.ts"
+    },
+    {
+      "src": "/api/oauth/callback",
+      "dest": "/api/oauth/callback.ts"
+    },
+    {
+      "src": "/api/webhooks/company",
+      "dest": "/api/webhooks/company.ts"
+    },
+    {
+      "src": "/api/functions/(.*)",
+      "dest": "/api/functions/$1.ts"
+    }
+  ],
+  "env": {
+    "SUPABASE_URL": "@supabase_url",
+    "SUPABASE_SERVICE_KEY": "@supabase_service_key",
+    "SAM_GOV_API_KEY": "@sam_gov_api_key",
+    "HUBSPOT_CLIENT_ID": "@hubspot_client_id",
+    "HUBSPOT_CLIENT_SECRET": "@hubspot_client_secret",
+    "HUBSPOT_REDIRECT_URI": "@hubspot_redirect_uri"
+  }
+}
