@@ -61,7 +61,7 @@ async function searchSamByUei(uei: string): Promise<SamEntity | null> {
     return null;
   }
 
-  const data = await response.json();
+  const data = await response.json() as { entityData?: any[] };
   if (data.entityData && data.entityData.length > 0) {
     return normalizeSamEntity(data.entityData[0]);
   }
@@ -160,7 +160,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             entity,
             matchScore: 1.0,
             matchStatus: 'matched',
-            subsidiaries: subsidiaries?.map(normalizeSamEntity) || [],
+            subsidiaries: (subsidiaries as any[])?.map(normalizeSamEntity) || [],
           },
         });
       }
@@ -173,12 +173,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('hubspot_company_id', companyId)
       .single();
 
-    if (association?.sam_entities) {
+    const assocData = association as any;
+    if (assocData?.sam_entities) {
       return res.status(200).json({
         status: 'SUCCESS',
         data: {
-          entity: normalizeSamEntity(association.sam_entities),
-          matchScore: association.match_score || 0.9,
+          entity: normalizeSamEntity(assocData.sam_entities),
+          matchScore: assocData.match_score || 0.9,
           matchStatus: 'matched',
         },
       });

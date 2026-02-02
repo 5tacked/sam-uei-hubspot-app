@@ -155,12 +155,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Failed to exchange authorization code' });
     }
 
-    const tokens = await tokenResponse.json();
+    const tokens = await tokenResponse.json() as { access_token: string; refresh_token: string; expires_in: number };
     const { access_token, refresh_token, expires_in } = tokens;
 
     // Get portal info
     const portalResponse = await fetch('https://api.hubapi.com/oauth/v1/access-tokens/' + access_token);
-    const portalInfo = await portalResponse.json();
+    const portalInfo = await portalResponse.json() as { hub_id: number; user: string; scopes?: string[] };
 
     const portalId = portalInfo.hub_id;
     const userEmail = portalInfo.user;

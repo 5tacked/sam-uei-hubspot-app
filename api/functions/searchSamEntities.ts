@@ -64,7 +64,7 @@ async function searchSamByName(name: string, state?: string): Promise<any[]> {
     return [];
   }
 
-  const data = await response.json();
+  const data = await response.json() as { entityData?: any[] };
   return data.entityData || [];
 }
 

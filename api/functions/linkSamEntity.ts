@@ -21,7 +21,7 @@ async function getEntityByUei(uei: string): Promise<any | null> {
     return null;
   }
 
-  const data = await response.json();
+  const data = await response.json() as { entityData?: any[] };
   return data.entityData?.[0] || null;
 }
 
