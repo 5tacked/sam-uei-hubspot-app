@@ -129,13 +129,13 @@ async function searchSamByName(name: string, state?: string, domain?: string): P
     }
   }
 
-  // Strategy 4: If still no results, try keyword search using 'q' parameter
-  // This does broader fuzzy/keyword matching
+  // Strategy 4: If still no results, try keyword search using 'samSearch' parameter
+  // This is SAM.gov's free-text search that does broader matching
   if (!data.entityData || data.entityData.length === 0) {
-    console.log('No results from exact searches, trying keyword search with q parameter');
+    console.log('No results from exact searches, trying samSearch parameter');
     params = new URLSearchParams({
       api_key: SAM_API_KEY,
-      q: normalizedName,
+      samSearch: normalizedName,
       registrationStatus: 'A',
     });
 
@@ -145,9 +145,9 @@ async function searchSamByName(name: string, state?: string, domain?: string): P
 
     if (response.ok) {
       data = await response.json() as { entityData?: any[] };
-      console.log('Keyword search (q) returned', data.entityData?.length || 0, 'entities');
+      console.log('samSearch returned', data.entityData?.length || 0, 'entities');
     } else {
-      console.log('SAM.gov API error (keyword search):', response.status, response.statusText);
+      console.log('SAM.gov API error (samSearch):', response.status, response.statusText);
     }
   }
 
