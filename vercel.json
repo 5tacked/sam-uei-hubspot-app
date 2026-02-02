@@ -24,13 +24,5 @@
       "src": "/api/functions/(.*)",
       "dest": "/api/functions/$1.ts"
     }
-  ],
-  "env": {
-    "SUPABASE_URL": "@supabase_url",
-    "SUPABASE_SERVICE_KEY": "@supabase_service_key",
-    "SAM_GOV_API_KEY": "@sam_gov_api_key",
-    "HUBSPOT_CLIENT_ID": "@hubspot_client_id",
-    "HUBSPOT_CLIENT_SECRET": "@hubspot_client_secret",
-    "HUBSPOT_REDIRECT_URI": "@hubspot_redirect_uri"
-  }
+  ]
 }
