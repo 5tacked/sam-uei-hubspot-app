@@ -11,7 +11,7 @@ const SAM_API_KEY = process.env.SAM_GOV_API_KEY!;
 const SAM_API_BASE = 'https://api.sam.gov/entity-information/v3/entities';
 const HUBSPOT_CLIENT_SECRET = process.env.HUBSPOT_CLIENT_SECRET!;
 
-// Verify HubSpot webhook signature
+// Verify HubSpot webhook signature (v3)
 function verifySignature(
   requestBody: string,
   signature: string,
@@ -20,11 +20,13 @@ function verifySignature(
   requestUri: string,
   timestamp: string
 ): boolean {
+  // HubSpot v3 signature format: METHOD + URL + BODY + TIMESTAMP
+  // The signature is base64-encoded HMAC-SHA256
   const sourceString = `${requestMethod}${requestUri}${requestBody}${timestamp}`;
   const hash = crypto
     .createHmac('sha256', clientSecret)
     .update(sourceString)
-    .digest('hex');
+    .digest('base64');
   return hash === signature;
 }
 
@@ -354,24 +356,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Verify webhook signature (optional but recommended)
+  // Verify webhook signature (v3)
   const signature = req.headers['x-hubspot-signature-v3'] as string;
   const timestamp = req.headers['x-hubspot-request-timestamp'] as string;
 
   if (signature && timestamp && HUBSPOT_CLIENT_SECRET) {
+    // Build full URL - HubSpot v3 requires complete URL including protocol and host
+    const protocol = req.headers['x-forwarded-proto'] || 'https';
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'sam-uei-hubspot-app.vercel.app';
+    const fullUrl = `${protocol}://${host}${req.url || '/api/webhooks/company'}`;
+
     const requestBody = JSON.stringify(req.body);
     const isValid = verifySignature(
       requestBody,
       signature,
       HUBSPOT_CLIENT_SECRET,
       'POST',
-      req.url || '',
+      fullUrl,
       timestamp
     );
 
     if (!isValid) {
-      console.warn('Invalid webhook signature');
-      // Continue anyway for development, but log warning
+      console.error('Invalid webhook signature', {
+        expectedUrl: fullUrl,
+        timestamp,
+        bodyLength: requestBody.length,
+      });
+      return res.status(401).json({ error: 'Invalid webhook signature' });
     }
   }
 
