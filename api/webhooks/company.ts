@@ -323,6 +323,17 @@ async function processCompanyCreation(companyId: string, portalId: string): Prom
 
         const score = Math.min(1, Math.max(nameScore, dbaScore) + stateBonus);
 
+        // Log all match calculations for debugging
+        console.log('Match calculation:', {
+          hubspotName: normalizeCompanyName(companyName),
+          samLegalName: normalized.legalBusinessName,
+          samDbaName: normalized.dbaName,
+          nameScore,
+          dbaScore,
+          stateBonus,
+          finalScore: score,
+        });
+
         return { entity: normalized, raw: entity, score };
       })
       .filter((m: any) => m.score >= 0.5)
