@@ -1,23 +1,5 @@
 {
   "version": 2,
   "buildCommand": "npm run build",
-  "outputDirectory": ".",
-  "routes": [
-    {
-      "src": "/api/oauth/authorize",
-      "dest": "/api/oauth/authorize.ts"
-    },
-    {
-      "src": "/api/oauth/callback",
-      "dest": "/api/oauth/callback.ts"
-    },
-    {
-      "src": "/api/webhooks/company",
-      "dest": "/api/webhooks/company.ts"
-    },
-    {
-      "src": "/api/functions/(.*)",
-      "dest": "/api/functions/$1.ts"
-    }
-  ]
+  "outputDirectory": "."
 }
