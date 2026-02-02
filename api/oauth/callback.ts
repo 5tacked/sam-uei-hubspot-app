@@ -169,13 +169,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { error: upsertError } = await supabase
       .from('hubspot_installations')
       .upsert({
-        portal_id: portalId.toString(),
+        portal_id: portalId,
         access_token,
         refresh_token,
         expires_at: new Date(Date.now() + expires_in * 1000).toISOString(),
-        installed_by: userEmail,
-        installed_at: new Date().toISOString(),
         scopes: portalInfo.scopes || [],
+        is_active: true,
       }, {
         onConflict: 'portal_id',
       });
