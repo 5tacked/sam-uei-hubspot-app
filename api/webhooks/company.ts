@@ -11,6 +11,17 @@ const SAM_API_KEY = process.env.SAM_GOV_API_KEY!;
 const SAM_API_BASE = 'https://api.sam.gov/entity-information/v3/entities';
 const HUBSPOT_CLIENT_SECRET = process.env.HUBSPOT_CLIENT_SECRET!;
 
+// Simple delay function to avoid rate limiting
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// In-memory cache for recent SAM.gov searches (TTL: 5 minutes)
+const searchCache = new Map<string, { data: any[]; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Track recently processed companies to prevent duplicate processing
+const recentlyProcessed = new Map<string, number>();
+const DEDUP_TTL = 30 * 1000; // 30 seconds
+
 // Verify HubSpot webhook signature (v3)
 function verifySignature(
   requestBody: string,
@@ -68,6 +79,41 @@ async function searchSamByName(name: string, state?: string, domain?: string): P
   const normalizedName = normalizeCompanyName(name);
   console.log('SAM.gov search - name:', normalizedName, 'state:', state, 'domain:', domain);
 
+  // Check cache first
+  const cacheKey = `${normalizedName}|${state || ''}|${domain || ''}`;
+  const cached = searchCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log('Using cached SAM.gov results');
+    return cached.data;
+  }
+
+  // Helper to make SAM.gov API request with retry on rate limit
+  async function samFetch(params: URLSearchParams, strategyName: string): Promise<{ entityData?: any[] }> {
+    const response = await fetch(`${SAM_API_BASE}?${params}`, {
+      headers: { Accept: 'application/json' },
+    });
+
+    if (response.status === 429) {
+      console.log(`SAM.gov rate limited on ${strategyName}, waiting 2s and retrying...`);
+      await delay(2000);
+      const retryResponse = await fetch(`${SAM_API_BASE}?${params}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!retryResponse.ok) {
+        console.log(`SAM.gov API error (${strategyName} retry):`, retryResponse.status, retryResponse.statusText);
+        return { entityData: [] };
+      }
+      return await retryResponse.json() as { entityData?: any[] };
+    }
+
+    if (!response.ok) {
+      console.log(`SAM.gov API error (${strategyName}):`, response.status, response.statusText);
+      return { entityData: [] };
+    }
+
+    return await response.json() as { entityData?: any[] };
+  }
+
   // Strategy 1: Search by legal business name with state
   let params = new URLSearchParams({
     api_key: SAM_API_KEY,
@@ -79,80 +125,56 @@ async function searchSamByName(name: string, state?: string, domain?: string): P
     params.append('physicalAddressStateCode', state);
   }
 
-  let response = await fetch(`${SAM_API_BASE}?${params}`, {
-    headers: { Accept: 'application/json' },
-  });
-
-  if (!response.ok) {
-    console.log('SAM.gov API error (name+state):', response.status, response.statusText);
-  }
-
-  let data = response.ok ? await response.json() as { entityData?: any[] } : { entityData: [] };
+  let data = await samFetch(params, 'name+state');
 
   // Strategy 2: If no results, try without state filter
   if ((!data.entityData || data.entityData.length === 0) && state) {
     console.log('No results with state filter, trying name only...');
+    await delay(500); // Small delay between requests
     params = new URLSearchParams({
       api_key: SAM_API_KEY,
       legalBusinessName: normalizedName,
       registrationStatus: 'A',
     });
 
-    response = await fetch(`${SAM_API_BASE}?${params}`, {
-      headers: { Accept: 'application/json' },
-    });
-
-    if (response.ok) {
-      data = await response.json() as { entityData?: any[] };
-    }
+    data = await samFetch(params, 'name only');
   }
 
   // Strategy 3: If still no results and we have a domain, try searching by entity URL
   if ((!data.entityData || data.entityData.length === 0) && domain) {
     console.log('No name results, trying domain search:', domain);
-    // SAM.gov uses entityURL parameter for website matching
+    await delay(500);
     params = new URLSearchParams({
       api_key: SAM_API_KEY,
       entityURL: domain,
       registrationStatus: 'A',
     });
 
-    response = await fetch(`${SAM_API_BASE}?${params}`, {
-      headers: { Accept: 'application/json' },
-    });
-
-    if (response.ok) {
-      data = await response.json() as { entityData?: any[] };
-      console.log('Domain search returned', data.entityData?.length || 0, 'entities');
-    } else {
-      console.log('SAM.gov API error (domain):', response.status, response.statusText);
-    }
+    data = await samFetch(params, 'domain');
+    console.log('Domain search returned', data.entityData?.length || 0, 'entities');
   }
 
   // Strategy 4: If still no results, try keyword search using 'samSearch' parameter
-  // This is SAM.gov's free-text search that does broader matching
   if (!data.entityData || data.entityData.length === 0) {
     console.log('No results from exact searches, trying samSearch parameter');
+    await delay(500);
     params = new URLSearchParams({
       api_key: SAM_API_KEY,
       samSearch: normalizedName,
       registrationStatus: 'A',
     });
 
-    response = await fetch(`${SAM_API_BASE}?${params}`, {
-      headers: { Accept: 'application/json' },
-    });
-
-    if (response.ok) {
-      data = await response.json() as { entityData?: any[] };
-      console.log('samSearch returned', data.entityData?.length || 0, 'entities');
-    } else {
-      console.log('SAM.gov API error (samSearch):', response.status, response.statusText);
-    }
+    data = await samFetch(params, 'samSearch');
+    console.log('samSearch returned', data.entityData?.length || 0, 'entities');
   }
 
-  console.log('SAM.gov total returned', data.entityData?.length || 0, 'entities');
-  return data.entityData || [];
+  const results = data.entityData || [];
+  console.log('SAM.gov total returned', results.length, 'entities');
+
+  // Cache the results
+  searchCache.set(cacheKey, { data: results, timestamp: Date.now() });
+
+  return results;
 }
 
 async function getCompanyFromHubSpot(companyId: string, portalId: string): Promise<any> {
@@ -488,6 +510,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (subscriptionType === 'object.creation' ||
           (subscriptionType === 'object.propertyChange' &&
            (propertyName === 'name' || propertyName === 'domain'))) {
+
+        // Deduplicate: Skip if this company was processed recently
+        const dedupKey = `${portalId}-${objectId}`;
+        const lastProcessed = recentlyProcessed.get(dedupKey);
+        if (lastProcessed && Date.now() - lastProcessed < DEDUP_TTL) {
+          console.log('Skipping duplicate event for company', objectId, '- processed', Date.now() - lastProcessed, 'ms ago');
+          continue;
+        }
+
+        // Mark as being processed
+        recentlyProcessed.set(dedupKey, Date.now());
 
         console.log('Event matched! Starting processCompanyCreation for', objectId);
         // Add to processing queue
