@@ -397,8 +397,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { subscriptionType, objectId, portalId, propertyName } = event;
       console.log('Processing event:', { subscriptionType, objectId, portalId, propertyName });
 
-      if (subscriptionType === 'company.creation' ||
-          (subscriptionType === 'company.propertyChange' &&
+      // HubSpot sends 'object.creation' and 'object.propertyChange' for webhooks
+      if (subscriptionType === 'object.creation' ||
+          (subscriptionType === 'object.propertyChange' &&
            (propertyName === 'name' || propertyName === 'domain'))) {
 
         console.log('Event matched! Starting processCompanyCreation for', objectId);
