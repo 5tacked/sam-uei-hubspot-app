@@ -18,7 +18,6 @@ import {
   Divider,
   Link,
   Tile,
-  StatisticTrend,
   DescriptionList,
   DescriptionListItem,
 } from '@hubspot/ui-extensions';
@@ -364,7 +363,7 @@ const SamEntityCard: React.FC<SamEntityCardProps> = ({
               entity.registrationStatus === 'Active'
                 ? 'success'
                 : entity.registrationStatus === 'Inactive'
-                ? 'danger'
+                ? 'error'
                 : 'warning'
             }
           >
@@ -582,8 +581,8 @@ const SamEntityCard: React.FC<SamEntityCardProps> = ({
       <Divider />
       <Flex justify="between">
         {entity.entityUrl && (
-          <Link href={entity.entityUrl} external>
-            View on SAM.gov
+          <Link href={entity.entityUrl}>
+            View on SAM.gov ↗
           </Link>
         )}
         <Button variant="destructive" size="xs" onClick={handleUnlink}>

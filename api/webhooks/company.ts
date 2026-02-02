@@ -82,7 +82,7 @@ async function searchSamByName(name: string, state?: string): Promise<any[]> {
     return [];
   }
 
-  const data = await response.json();
+  const data = await response.json() as { entityData?: any[] };
   return data.entityData || [];
 }
 
@@ -117,7 +117,7 @@ async function getCompanyFromHubSpot(companyId: string, portalId: string): Promi
       throw new Error('Failed to refresh access token');
     }
 
-    const tokens = await refreshResponse.json();
+    const tokens = await refreshResponse.json() as { access_token: string; refresh_token: string; expires_in: number };
     accessToken = tokens.access_token;
 
     // Update stored tokens
