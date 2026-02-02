@@ -14,6 +14,43 @@ const HUBSPOT_CLIENT_SECRET = process.env.HUBSPOT_CLIENT_SECRET!;
 // Feature flag: Use local database instead of SAM.gov API
 const USE_LOCAL_DB = process.env.USE_LOCAL_SAM_DB === 'true';
 
+// US State name to abbreviation mapping
+const STATE_ABBREVIATIONS: Record<string, string> = {
+  'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR', 'california': 'CA',
+  'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE', 'florida': 'FL', 'georgia': 'GA',
+  'hawaii': 'HI', 'idaho': 'ID', 'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA',
+  'kansas': 'KS', 'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+  'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS', 'missouri': 'MO',
+  'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ',
+  'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH',
+  'oklahoma': 'OK', 'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+  'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT', 'vermont': 'VT',
+  'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY',
+  'district of columbia': 'DC', 'puerto rico': 'PR', 'guam': 'GU', 'virgin islands': 'VI',
+  'american samoa': 'AS', 'northern mariana islands': 'MP'
+};
+
+// Convert state name to abbreviation (returns original if already an abbreviation or not found)
+function normalizeStateCode(state: string | undefined): string | undefined {
+  if (!state) return undefined;
+
+  const trimmed = state.trim();
+
+  // If it's already a 2-letter abbreviation, return uppercase
+  if (trimmed.length === 2) {
+    return trimmed.toUpperCase();
+  }
+
+  // Try to find the abbreviation from the full name
+  const abbrev = STATE_ABBREVIATIONS[trimmed.toLowerCase()];
+  if (abbrev) {
+    return abbrev;
+  }
+
+  // Return original if no mapping found (could be a non-US location)
+  return trimmed;
+}
+
 // Simple delay function to avoid rate limiting
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -281,10 +318,12 @@ async function searchSamApi(name: string, state?: string, domain?: string): Prom
  */
 async function searchSamByName(name: string, state?: string, domain?: string): Promise<any[]> {
   const normalizedName = normalizeCompanyName(name);
-  console.log('SAM search - name:', normalizedName, 'state:', state, 'domain:', domain, 'useLocalDb:', USE_LOCAL_DB);
+  // Convert full state names to abbreviations for database matching
+  const normalizedState = normalizeStateCode(state);
+  console.log('SAM search - name:', normalizedName, 'state:', state, '-> stateCode:', normalizedState, 'domain:', domain, 'useLocalDb:', USE_LOCAL_DB);
 
   // Check cache first
-  const cacheKey = `${normalizedName}|${state || ''}|${domain || ''}`;
+  const cacheKey = `${normalizedName}|${normalizedState || ''}|${domain || ''}`;
   const cached = searchCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     console.log('Using cached results');
@@ -294,17 +333,17 @@ async function searchSamByName(name: string, state?: string, domain?: string): P
   let results: any[];
 
   if (USE_LOCAL_DB) {
-    // Use local database
-    results = await searchSamLocalDb(name, state, domain);
+    // Use local database with normalized state code
+    results = await searchSamLocalDb(name, normalizedState, domain);
 
     // If no results from local DB, optionally fall back to API
     if (results.length === 0 && SAM_API_KEY) {
       console.log('No local results, falling back to SAM.gov API...');
-      results = await searchSamApi(name, state, domain);
+      results = await searchSamApi(name, normalizedState, domain);
     }
   } else {
-    // Use SAM.gov API directly
-    results = await searchSamApi(name, state, domain);
+    // Use SAM.gov API directly with normalized state code
+    results = await searchSamApi(name, normalizedState, domain);
   }
 
   console.log('SAM search total returned', results.length, 'entities');
