@@ -389,6 +389,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const events = Array.isArray(req.body) ? req.body : [req.body];
 
+    // Process all events and wait for completion
+    const processingPromises: Promise<void>[] = [];
+
     for (const event of events) {
       const { subscriptionType, objectId, portalId, propertyName } = event;
 
@@ -396,14 +399,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           (subscriptionType === 'company.propertyChange' &&
            (propertyName === 'name' || propertyName === 'domain'))) {
 
-        // Process asynchronously to avoid timeout
-        processCompanyCreation(objectId.toString(), portalId.toString())
-          .catch(err => console.error('Background processing error:', err));
+        // Add to processing queue
+        processingPromises.push(
+          processCompanyCreation(objectId.toString(), portalId.toString())
+        );
       }
     }
 
-    // Return success immediately
-    return res.status(200).json({ status: 'received' });
+    // Wait for all processing to complete before responding
+    await Promise.all(processingPromises);
+
+    return res.status(200).json({ status: 'processed' });
 
   } catch (error: any) {
     console.error('Webhook handler error:', error);
