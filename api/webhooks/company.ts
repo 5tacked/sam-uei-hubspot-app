@@ -388,17 +388,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const events = Array.isArray(req.body) ? req.body : [req.body];
+    console.log('Webhook received events:', JSON.stringify(events, null, 2));
 
     // Process all events and wait for completion
     const processingPromises: Promise<void>[] = [];
 
     for (const event of events) {
       const { subscriptionType, objectId, portalId, propertyName } = event;
+      console.log('Processing event:', { subscriptionType, objectId, portalId, propertyName });
 
       if (subscriptionType === 'company.creation' ||
           (subscriptionType === 'company.propertyChange' &&
            (propertyName === 'name' || propertyName === 'domain'))) {
 
+        console.log('Event matched! Starting processCompanyCreation for', objectId);
         // Add to processing queue
         processingPromises.push(
           processCompanyCreation(objectId.toString(), portalId.toString())
@@ -406,8 +409,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    console.log('Total processing promises:', processingPromises.length);
     // Wait for all processing to complete before responding
     await Promise.all(processingPromises);
+    console.log('All processing complete');
 
     return res.status(200).json({ status: 'processed' });
 
