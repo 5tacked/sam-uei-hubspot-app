@@ -205,13 +205,17 @@ async function processCompanyCreation(companyId: string, portalId: string): Prom
     const companyProps = company.properties;
     const companyName = companyProps.name;
 
+    console.log('Processing company:', { companyId, companyName, state: companyProps.state });
+
     if (!companyName) {
       console.log('Company has no name, skipping SAM matching');
       return;
     }
 
     // Search SAM.gov
+    console.log('Searching SAM.gov for:', normalizeCompanyName(companyName));
     const samEntities = await searchSamByName(companyName, companyProps.state);
+    console.log('SAM.gov returned', samEntities.length, 'entities');
 
     if (samEntities.length === 0) {
       // No matches - add to queue for manual review
@@ -271,6 +275,11 @@ async function processCompanyCreation(companyId: string, portalId: string): Prom
     }
 
     const bestMatch = matches[0];
+    console.log('Best match:', {
+      legalName: bestMatch.entity.legalBusinessName,
+      uei: bestMatch.entity.uei,
+      score: bestMatch.score,
+    });
 
     // If high confidence match (>85%), auto-link
     if (bestMatch.score >= 0.85) {
