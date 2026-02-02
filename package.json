@@ -8,7 +8,8 @@
     "build": "tsc",
     "deploy": "vercel --prod",
     "hs:upload": "hs project upload",
-    "hs:dev": "hs project dev"
+    "hs:dev": "hs project dev",
+    "import-sam": "npx ts-node scripts/import-sam-extract.ts"
   },
   "dependencies": {
     "@hubspot/ui-extensions": "^0.12.1",
@@ -21,6 +22,7 @@
     "@hubspot/cli": "^7.11.0",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.3.0",
     "vercel": "^32.0.0"
   },

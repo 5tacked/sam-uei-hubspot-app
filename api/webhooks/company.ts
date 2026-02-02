@@ -11,6 +11,9 @@ const SAM_API_KEY = process.env.SAM_GOV_API_KEY!;
 const SAM_API_BASE = 'https://api.sam.gov/entity-information/v3/entities';
 const HUBSPOT_CLIENT_SECRET = process.env.HUBSPOT_CLIENT_SECRET!;
 
+// Feature flag: Use local database instead of SAM.gov API
+const USE_LOCAL_DB = process.env.USE_LOCAL_SAM_DB === 'true';
+
 // Simple delay function to avoid rate limiting
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -75,17 +78,119 @@ function normalizeCompanyName(name: string): string {
     .trim();
 }
 
-async function searchSamByName(name: string, state?: string, domain?: string): Promise<any[]> {
+/**
+ * Search local Supabase database for SAM.gov entities
+ * Uses PostgreSQL trigram similarity for fuzzy matching
+ */
+async function searchSamLocalDb(name: string, state?: string, domain?: string): Promise<any[]> {
   const normalizedName = normalizeCompanyName(name);
-  console.log('SAM.gov search - name:', normalizedName, 'state:', state, 'domain:', domain);
+  console.log('Local DB search - name:', normalizedName, 'state:', state, 'domain:', domain);
 
-  // Check cache first
-  const cacheKey = `${normalizedName}|${state || ''}|${domain || ''}`;
-  const cached = searchCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    console.log('Using cached SAM.gov results');
-    return cached.data;
+  try {
+    // Use the Supabase RPC function for similarity search
+    const { data, error } = await supabase.rpc('search_sam_entities', {
+      search_name: normalizedName,
+      search_state: state || null,
+      search_domain: domain || null,
+      min_similarity: 0.3,
+      result_limit: 20
+    });
+
+    if (error) {
+      console.error('Local DB search error:', error);
+      // Fall back to basic query if RPC function doesn't exist
+      return await searchSamLocalDbBasic(normalizedName, state, domain);
+    }
+
+    if (!data || data.length === 0) {
+      console.log('No results from local DB similarity search');
+      return [];
+    }
+
+    // Convert local DB format to API-like format for compatibility
+    const results = data.map((row: any) => ({
+      entityRegistration: {
+        ueiSAM: row.uei,
+        legalBusinessName: row.legal_business_name,
+        dbaName: row.dba_name,
+        cageCode: row.cage_code,
+        registrationStatus: row.registration_status,
+        registrationExpirationDate: row.registration_expiration_date,
+      },
+      coreData: {
+        physicalAddress: {
+          stateOrProvinceCode: row.physical_address_state,
+        }
+      },
+      // Include similarity scores for debugging
+      _similarity: {
+        name: row.name_similarity,
+        dba: row.dba_similarity
+      }
+    }));
+
+    console.log('Local DB returned', results.length, 'entities');
+    return results;
+  } catch (error) {
+    console.error('Local DB search exception:', error);
+    return [];
   }
+}
+
+/**
+ * Basic local DB search (fallback if RPC function not available)
+ */
+async function searchSamLocalDbBasic(name: string, state?: string, domain?: string): Promise<any[]> {
+  console.log('Using basic local DB search');
+
+  let query = supabase
+    .from('sam_entities_local')
+    .select('*')
+    .eq('registration_status', 'A')
+    .limit(20);
+
+  // Add state filter if provided
+  if (state) {
+    query = query.eq('physical_address_state', state);
+  }
+
+  // Search by name using ilike (case insensitive)
+  query = query.or(`legal_business_name.ilike.%${name}%,dba_name.ilike.%${name}%`);
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Basic local DB search error:', error);
+    return [];
+  }
+
+  // Convert to API-like format
+  const results = (data || []).map((row: any) => ({
+    entityRegistration: {
+      ueiSAM: row.uei,
+      legalBusinessName: row.legal_business_name,
+      dbaName: row.dba_name,
+      cageCode: row.cage_code,
+      registrationStatus: row.registration_status,
+      registrationExpirationDate: row.registration_expiration_date,
+    },
+    coreData: {
+      physicalAddress: {
+        stateOrProvinceCode: row.physical_address_state,
+      }
+    }
+  }));
+
+  console.log('Basic local DB returned', results.length, 'entities');
+  return results;
+}
+
+/**
+ * Search SAM.gov API for entities
+ */
+async function searchSamApi(name: string, state?: string, domain?: string): Promise<any[]> {
+  const normalizedName = normalizeCompanyName(name);
+  console.log('SAM.gov API search - name:', normalizedName, 'state:', state, 'domain:', domain);
 
   // Helper to make SAM.gov API request with retry on rate limit
   async function samFetch(params: URLSearchParams, strategyName: string): Promise<{ entityData?: any[] }> {
@@ -130,7 +235,7 @@ async function searchSamByName(name: string, state?: string, domain?: string): P
   // Strategy 2: If no results, try without state filter
   if ((!data.entityData || data.entityData.length === 0) && state) {
     console.log('No results with state filter, trying name only...');
-    await delay(500); // Small delay between requests
+    await delay(500);
     params = new URLSearchParams({
       api_key: SAM_API_KEY,
       legalBusinessName: normalizedName,
@@ -168,8 +273,41 @@ async function searchSamByName(name: string, state?: string, domain?: string): P
     console.log('samSearch returned', data.entityData?.length || 0, 'entities');
   }
 
-  const results = data.entityData || [];
-  console.log('SAM.gov total returned', results.length, 'entities');
+  return data.entityData || [];
+}
+
+/**
+ * Main search function - uses local DB or API based on configuration
+ */
+async function searchSamByName(name: string, state?: string, domain?: string): Promise<any[]> {
+  const normalizedName = normalizeCompanyName(name);
+  console.log('SAM search - name:', normalizedName, 'state:', state, 'domain:', domain, 'useLocalDb:', USE_LOCAL_DB);
+
+  // Check cache first
+  const cacheKey = `${normalizedName}|${state || ''}|${domain || ''}`;
+  const cached = searchCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log('Using cached results');
+    return cached.data;
+  }
+
+  let results: any[];
+
+  if (USE_LOCAL_DB) {
+    // Use local database
+    results = await searchSamLocalDb(name, state, domain);
+
+    // If no results from local DB, optionally fall back to API
+    if (results.length === 0 && SAM_API_KEY) {
+      console.log('No local results, falling back to SAM.gov API...');
+      results = await searchSamApi(name, state, domain);
+    }
+  } else {
+    // Use SAM.gov API directly
+    results = await searchSamApi(name, state, domain);
+  }
+
+  console.log('SAM search total returned', results.length, 'entities');
 
   // Cache the results
   searchCache.set(cacheKey, { data: results, timestamp: Date.now() });
