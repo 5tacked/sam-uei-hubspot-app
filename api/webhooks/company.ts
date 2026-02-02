@@ -64,16 +64,14 @@ function normalizeCompanyName(name: string): string {
     .trim();
 }
 
-async function searchSamByName(name: string, state?: string): Promise<any[]> {
+async function searchSamByName(name: string, state?: string, domain?: string): Promise<any[]> {
   const normalizedName = normalizeCompanyName(name);
+  console.log('SAM.gov search - name:', normalizedName, 'state:', state, 'domain:', domain);
 
-  // Try search with wildcard for partial matching
-  const searchName = `${normalizedName}*`;
-  console.log('SAM.gov search name:', searchName, 'state:', state);
-
-  const params = new URLSearchParams({
+  // Strategy 1: Search by legal business name with state
+  let params = new URLSearchParams({
     api_key: SAM_API_KEY,
-    legalBusinessName: searchName,
+    legalBusinessName: normalizedName,
     registrationStatus: 'A',
   });
 
@@ -86,22 +84,21 @@ async function searchSamByName(name: string, state?: string): Promise<any[]> {
   });
 
   if (!response.ok) {
-    console.log('SAM.gov API error:', response.status, response.statusText);
-    return [];
+    console.log('SAM.gov API error (name+state):', response.status, response.statusText);
   }
 
-  let data = await response.json() as { entityData?: any[] };
+  let data = response.ok ? await response.json() as { entityData?: any[] } : { entityData: [] };
 
-  // If no results with state filter, try without state
+  // Strategy 2: If no results, try without state filter
   if ((!data.entityData || data.entityData.length === 0) && state) {
-    console.log('No results with state filter, trying without state...');
-    const paramsNoState = new URLSearchParams({
+    console.log('No results with state filter, trying name only...');
+    params = new URLSearchParams({
       api_key: SAM_API_KEY,
-      legalBusinessName: searchName,
+      legalBusinessName: normalizedName,
       registrationStatus: 'A',
     });
 
-    response = await fetch(`${SAM_API_BASE}?${paramsNoState}`, {
+    response = await fetch(`${SAM_API_BASE}?${params}`, {
       headers: { Accept: 'application/json' },
     });
 
@@ -110,7 +107,29 @@ async function searchSamByName(name: string, state?: string): Promise<any[]> {
     }
   }
 
-  console.log('SAM.gov returned', data.entityData?.length || 0, 'entities');
+  // Strategy 3: If still no results and we have a domain, try searching by entity URL
+  if ((!data.entityData || data.entityData.length === 0) && domain) {
+    console.log('No name results, trying domain search:', domain);
+    // SAM.gov uses entityURL parameter for website matching
+    params = new URLSearchParams({
+      api_key: SAM_API_KEY,
+      entityURL: domain,
+      registrationStatus: 'A',
+    });
+
+    response = await fetch(`${SAM_API_BASE}?${params}`, {
+      headers: { Accept: 'application/json' },
+    });
+
+    if (response.ok) {
+      data = await response.json() as { entityData?: any[] };
+      console.log('Domain search returned', data.entityData?.length || 0, 'entities');
+    } else {
+      console.log('SAM.gov API error (domain):', response.status, response.statusText);
+    }
+  }
+
+  console.log('SAM.gov total returned', data.entityData?.length || 0, 'entities');
   return data.entityData || [];
 }
 
@@ -239,8 +258,8 @@ async function processCompanyCreation(companyId: string, portalId: string): Prom
     }
 
     // Search SAM.gov
-    console.log('Searching SAM.gov for:', normalizeCompanyName(companyName));
-    const samEntities = await searchSamByName(companyName, companyProps.state);
+    console.log('Searching SAM.gov for:', normalizeCompanyName(companyName), 'domain:', companyProps.domain);
+    const samEntities = await searchSamByName(companyName, companyProps.state, companyProps.domain);
     console.log('SAM.gov returned', samEntities.length, 'entities');
 
     if (samEntities.length === 0) {
