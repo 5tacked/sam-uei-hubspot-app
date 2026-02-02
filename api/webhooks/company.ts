@@ -558,8 +558,9 @@ async function processCompanyCreation(companyId: string, portalId: string): Prom
       score: bestMatch.score,
     });
 
-    // If high confidence match (>85%), auto-link
-    if (bestMatch.score >= 0.85) {
+    // If high confidence match (>55%), auto-link
+    // Lowered from 85% to 55% to allow matching short names like "Honeywell" to full legal names
+    if (bestMatch.score >= 0.55) {
       const entity = bestMatch.entity;
 
       // Store in Supabase
